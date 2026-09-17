@@ -137,6 +137,26 @@ jobs:
             echo "type=native" >> $GITHUB_OUTPUT
           fi
           
+      - name: Setup Node.js
+        if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+
+      - name: Restore node_modules cache
+        if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
+        uses: actions/cache@v6
+        id: node-modules-cache
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json', 'yarn.lock') }}
+          restore-keys: |
+            node-modules-${{ runner.os }}-
+
+      - name: Install npm dependencies
+        if: (steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo') && steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: npm install --legacy-peer-deps
+          
       - name: Expo prebuild (generate ios/ folder)
         if: steps.detect.outputs.type == 'expo'
         env:
@@ -238,26 +258,6 @@ jobs:
       - name: Flutter pub get
         if: steps.detect.outputs.type == 'flutter'
         run: flutter pub get
-
-      - name: Setup Node.js
-        if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
-        uses: actions/setup-node@v7
-        with:
-          node-version: '20'
-
-      - name: Restore node_modules cache
-        if: steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo'
-        uses: actions/cache@v6
-        id: node-modules-cache
-        with:
-          path: node_modules
-          key: node-modules-${{ runner.os }}-${{ hashFiles('package-lock.json', 'yarn.lock') }}
-          restore-keys: |
-            node-modules-${{ runner.os }}-
-
-      - name: Install npm dependencies
-        if: (steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo') && steps.node-modules-cache.outputs.cache-hit != 'true'
-        run: npm install --legacy-peer-deps
 
       - name: Setup JDK
         if: steps.detect.outputs.type == 'kmp'
