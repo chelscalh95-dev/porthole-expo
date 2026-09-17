@@ -14,7 +14,7 @@ Pod::Spec.new do |s|
   # Compile the Atlantis sources directly into this pod.
   # Bypasses cocoapods-spm and its linking bugs entirely.
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}",
-                   "../../../vendor/Porthole/Sources/**/*.swift"
+                   "../../../vendor/Porthole/Sources/*.swift"
 
   s.resource_bundles = {
     'AtlantisPrivacy' => ['../../../vendor/Porthole/Sources/PrivacyInfo.xcprivacy']
