@@ -165,8 +165,13 @@ jobs:
             set -e
             npx expo prebuild --platform ios --no-install
              # Compute absolute path to vendor/Porthole
-            PORTHOLE_PATH="$(cd "$(pwd)/../vendor/Porthole" && pwd)"
+            PORTHOLE_PATH="$(cd "$(pwd)/vendor/Porthole" && pwd)"
             echo "Porthole absolute path: $PORTHOLE_PATH"
+            # Sanity check
+            if [ ! -f "$PORTHOLE_PATH/Package.swift" ]; then
+              echo "::error::Package.swift not found at $PORTHOLE_PATH"
+              exit 1
+            fi
             # Inject cocoapods-spm plugin and Porthole package
             cat <<EOF >> ios/Podfile
             # --- Porthole SPM Integration ---
