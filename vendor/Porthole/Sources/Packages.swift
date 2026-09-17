@@ -1,0 +1,407 @@
+//
+//  Packages.swift
+//  atlantis
+//
+//  Created by Nghia Tran on 10/23/20.
+//  Copyright © 2020 Proxyman. All rights reserved.
+//
+//  Modified by Porthole contributors, 2026.
+//
+
+import Foundation
+#if os(iOS) || targetEnvironment(macCatalyst) || os(tvOS) || os(visionOS)
+import UIKit
+#elseif os(watchOS)
+import WatchKit
+#endif
+
+public final class TrafficPackage: Codable, CustomDebugStringConvertible {
+
+    public enum PackageType: String, Codable {
+        case http
+        case websocket
+    }
+
+    // Should not change the variable names
+    // since we're using Codable in the main app and Atlantis
+
+    public let id: String
+    public private(set) var startAt: TimeInterval
+    public let request: Request
+    public private(set) var response: Response?
+    public private(set) var error: CustomError?
+    public private(set) var responseBodyData: Data
+    public private(set) var endAt: TimeInterval?
+    public private(set) var lastData: Data?
+    public private(set) var packageType: PackageType
+    private(set) var websocketMessagePackage: WebsocketMessagePackage?
+    /// Append-only, ordered record of every WS/SSE message on this row (source of
+    /// truth for the viewer/tests; the singular field above only holds the last one).
+    public private(set) var websocketMessages: [WebsocketMessagePackage] = []
+
+    // MARK: - Variables
+
+    var isServerSentEventStream: Bool {
+        return response?.isServerSentEventStream == true
+    }
+
+    // MARK: - Init
+
+    init(id: String,
+         request: Request,
+         response: Response? = nil,
+         responseBodyData: Data? = nil,
+         packageType: PackageType = .http,
+         startAt: TimeInterval = Date().timeIntervalSince1970,
+         endAt: TimeInterval? = nil) {
+        self.id = id
+        self.request = request
+        self.response = nil
+        self.startAt = startAt
+        self.endAt = endAt
+        self.response = response
+        self.responseBodyData = responseBodyData ?? Data()
+        self.packageType = packageType
+    }
+
+    // MARK: - Builder
+
+    static func buildRequest(sessionTask: URLSessionTask, id: String) -> TrafficPackage? {
+        guard let currentRequest = sessionTask.currentRequestSafe,
+              let request = Request(currentRequest) else { return nil }
+
+        // Check if it's a websocket
+        if let websocketClass = NSClassFromString("__NSURLSessionWebSocketTask"),
+           sessionTask.isKind(of: websocketClass) {
+            return TrafficPackage(id: id, request: request, packageType: .websocket)
+        }
+
+        // Or normal request
+        return TrafficPackage(id: id, request: request)
+    }
+
+    static func buildRequest(request: NSURLRequest, id: String) -> TrafficPackage? {
+        guard let request = Request(request as URLRequest) else { return nil }
+        return TrafficPackage(id: id, request: request)
+    }
+
+    static func buildRequest(urlRequest: URLRequest, urlResponse: URLResponse, bodyData: Data?) -> TrafficPackage? {
+        guard let request = Request(urlRequest) else { return nil }
+        let response = Response(urlResponse)
+        return TrafficPackage(id: UUID().uuidString, request: request, response: response, responseBodyData: bodyData)
+    }
+
+    static func buildRequest(urlRequest: URLRequest, error: Error) -> TrafficPackage? {
+        guard let request = Request(urlRequest) else { return nil }
+        let package = TrafficPackage(id: UUID().uuidString, request: request)
+        package.updateDidComplete(error)
+        return package
+    }
+
+    // MARK: - Internal func
+
+    func updateResponse(_ response: URLResponse) {
+        // Construct the Response without body
+        self.response = Response(response)
+    }
+    
+    func updateDidComplete(_ error: Error?) {
+        endAt = Date().timeIntervalSince1970
+        if let error = error {
+            self.error = CustomError(error)
+        }
+    }
+
+    func appendRequestData(_ data: Data) {
+        // This func should be called in Upload Tasks
+        request.appendBody(data)
+    }
+
+    func updateStartTime(_ startTime: TimeInterval) {
+        self.startAt = startTime
+    }
+
+    func appendResponseData(_ data: Data) {
+
+        // A dirty solution to prevent this method call twice from Method Swizzler
+        // It only occurs if it's a LocalDownloadTask
+        // LocalDownloadTask call it delegate, so the swap method is called twiced
+        //
+        // TODO: Inspired from Flex
+        // https://github.com/FLEXTool/FLEX/blob/e89fec4b2d7f081aa74067a86811ca115cde280b/Classes/Network/PonyDebugger/FLEXNetworkObserver.m#L133
+
+        // Skip if the same data (same pointer) is called twice
+        if let lastData = lastData, data == lastData {
+            return
+        }
+        lastData = data
+        responseBodyData.append(data)
+    }
+
+    public var debugDescription: String {
+        return "Package: id=\(id), request=\(String(describing: request)), response=\(String(describing: response))"
+    }
+
+    func setWebsocketMessagePackage(package: WebsocketMessagePackage) {
+        self.websocketMessagePackage = package
+        self.websocketMessages.append(package)
+    }
+
+    func markAsWebsocketPackage() {
+        self.packageType = .websocket
+    }
+}
+
+struct Device: Codable {
+
+    var name: String
+    let model: String
+
+    static let current = Device()
+
+    init() {
+        #if os(OSX)
+        let macName = Host.current().name ?? "Unknown Mac Devices"
+        name = macName
+        model = "\(macName) \(ProcessInfo.processInfo.operatingSystemVersionString)"
+        #elseif os(iOS) || targetEnvironment(macCatalyst) || os(tvOS) || os(visionOS)
+        let device = UIDevice.current
+        name = device.name
+        model = "\(device.name) (\(device.systemName) \(device.systemVersion))"
+        #elseif os(watchOS)
+        let device = WKInterfaceDevice.current()
+        name = device.name
+        let systemVersion = ProcessInfo.processInfo.operatingSystemVersion
+        let versionString = "\(systemVersion.majorVersion).\(systemVersion.minorVersion).\(systemVersion.patchVersion)"
+        model = "\(device.name) (watchOS \(versionString))"
+        #endif
+    }
+}
+
+struct Project: Codable {
+
+    static let current = Project()
+
+    var name: String
+    let bundleIdentifier: String
+
+    init() {
+        name = (Bundle.main.localizedInfoDictionary?["CFBundleDisplayName"] as? String)
+            ?? (Bundle.main.infoDictionary?["CFBundleDisplayName"] as? String)
+            ?? (Bundle.main.localizedInfoDictionary?[kCFBundleNameKey as String] as? String)
+            ?? (Bundle.main.infoDictionary?[kCFBundleNameKey as String] as? String)
+            ?? "Untitled"
+        bundleIdentifier = Bundle.main.bundleIdentifier ?? "No bundle identifier"
+    }
+}
+
+public struct Header: Codable {
+
+    public let key: String
+    public let value: String
+
+    public init(key: String, value: String) {
+        self.key = key
+        self.value = value
+    }
+}
+
+public final class Request: Codable {
+
+    // MARK: - Variables
+
+    public let url: String
+    public let method: String
+    public let headers: [Header]
+    public private(set) var body: Data?
+
+    // MARK: - Init
+
+    public init(url: String, method: String, headers: [Header], body: Data?) {
+        self.url = url
+        self.method = method
+        self.headers = headers
+        self.body = body
+    }
+
+    init?(_ urlRequest: URLRequest?) {
+        guard let urlRequest = urlRequest else { return nil }
+        url = urlRequest.url?.absoluteString ?? "-"
+        method = urlRequest.httpMethod ?? "-"
+        headers = urlRequest.allHTTPHeaderFields?.map { Header(key: $0.key, value: $0.value ) } ?? []
+        
+        // Try to get body from httpBody first
+        if let httpBody = urlRequest.httpBody {
+            body = httpBody
+        } else if let httpBodyStream = urlRequest.httpBodyStream {
+            // If httpBody is nil but httpBodyStream exists, try to read from the stream
+            body = Request.readDataFromStream(httpBodyStream)
+        } else {
+            body = nil
+        }
+    }
+
+    func appendBody(_ data: Data) {
+        if self.body == nil {
+            self.body = Data()
+        }
+        self.body?.append(data)
+    }
+
+    func resetBody() {
+        self.body = nil
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Safely reads data from an InputStream
+    /// This method attempts to read data from the stream without affecting the original request
+    private static func readDataFromStream(_ stream: InputStream) -> Data? {
+        // Check if the stream is already open
+        let wasStreamOpen = stream.streamStatus != .notOpen
+        
+        // If the stream is not open, try to open it
+        if !wasStreamOpen {
+            stream.open()
+        }
+        
+        // Check if we can read from the stream
+        guard stream.hasBytesAvailable || stream.streamStatus == .atEnd else {
+            if !wasStreamOpen {
+                stream.close()
+            }
+            return nil
+        }
+        
+        var data = Data()
+        let bufferSize = 8192  // 8KB chunks for better performance with larger bodies
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer {
+            buffer.deallocate()
+            // Only close the stream if we opened it
+            if !wasStreamOpen {
+                stream.close()
+            }
+        }
+        
+        while stream.hasBytesAvailable {
+            let bytesRead = stream.read(buffer, maxLength: bufferSize)
+            if bytesRead < 0 {
+                // Error occurred
+                print("[Atlantis] Error reading from httpBodyStream: \(stream.streamError?.localizedDescription ?? "Unknown error")")
+                return nil
+            } else if bytesRead == 0 {
+                // End of stream
+                break
+            } else {
+                data.append(buffer, count: bytesRead)
+            }
+        }
+        
+        return data.isEmpty ? nil : data
+    }
+}
+
+public struct Response: Codable {
+
+    // MARK: - Variables
+
+    public let statusCode: Int
+    public let headers: [Header]
+
+    // MARK: - Init
+
+    public init(statusCode: Int, headers: [Header]) {
+        self.statusCode = statusCode
+        self.headers = headers
+    }
+
+    var isServerSentEventStream: Bool {
+        headers.contains { header in
+            header.key.caseInsensitiveCompare("Content-Type") == .orderedSame &&
+            header.value.range(of: "text/event-stream", options: .caseInsensitive) != nil
+        }
+    }
+
+    init?(_ response: URLResponse) {
+        if let httpResponse = response as? HTTPURLResponse {
+            statusCode = httpResponse.statusCode
+            headers = httpResponse.allHeaderFields.map { Header(key: $0.key as? String ?? "Unknown Key", value: $0.value as? String ?? "Unknown Value" ) }
+        } else {
+            statusCode = 200
+            headers = [Header(key: "Content-Length", value: "\(response.expectedContentLength)"),
+                       Header(key: "Content-Type", value: response.mimeType ?? "plain/text")]
+        }
+    }
+}
+
+public struct CustomError: Codable {
+
+    public let code: Int
+    public let message: String
+
+    init(_ error: Error) {
+        let nsError = error as NSError
+        self.code = nsError.code
+        self.message = nsError.localizedDescription
+    }
+
+    init(_ error: NSError) {
+        self.code = error.code
+        self.message = error.localizedDescription
+    }
+}
+
+public struct WebsocketMessagePackage: Codable {
+
+    public enum MessageType: String, Codable {
+        case pingPong
+        case send
+        case receive
+        case sendCloseMessage
+    }
+
+    public enum Message {
+        case data(Data)
+        case string(String)
+
+        init?(message: URLSessionWebSocketTask.Message) {
+            switch message {
+            case .data(let data):
+                self = .data(data)
+            case .string(let str):
+                self = .string(str)
+            @unknown default:
+                return nil
+            }
+        }
+    }
+
+    private let id: String
+    public let createdAt: TimeInterval
+    public let messageType: MessageType
+    public let stringValue: String?
+    public let dataValue: Data?
+
+    init(id: String, message: Message, messageType: MessageType) {
+        self.messageType = messageType
+        self.id = id
+        self.createdAt = Date().timeIntervalSince1970
+        switch message {
+        case .data(let data):
+            self.dataValue = data
+            self.stringValue = nil
+        case .string(let strValue):
+            self.stringValue = strValue
+            self.dataValue = nil
+        }
+    }
+
+    init(id: String, closeCode: Int, reason: Data?) {
+        self.messageType = .sendCloseMessage
+        self.id = id
+        self.createdAt = Date().timeIntervalSince1970
+        self.stringValue = "\(closeCode)" // Temporarily store the closeCode by String
+        self.dataValue = reason
+    }
+}

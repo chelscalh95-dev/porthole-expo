@@ -165,13 +165,37 @@ jobs:
           set -e
           npx expo prebuild --platform ios --no-install
 
-          # Sanity check: the vendored Atlantis sources must be present
-          if [ ! -d "vendor/Porthole/Sources" ]; then
-            echo "::error::vendor/Porthole/Sources not found — submodule not checked out?"
+          # Compute the absolute path to the vendored Porthole repo.
+          # pwd is the project root at this point (prebuild ran but didn't cd).
+          PORTHOLE_PATH="$(cd "$(pwd)/vendor/Porthole" && pwd)"
+          echo "Porthole path: $PORTHOLE_PATH"
+
+          # Sanity checks — bail out early with a clear message if anything is missing
+          if [ ! -f "$PORTHOLE_PATH/Package.swift" ]; then
+            echo "::error::Package.swift not found at $PORTHOLE_PATH — submodule not checked out?"
             exit 1
           fi
-          echo "Vendored Atlantis sources present:"
-          ls vendor/Porthole/Sources | head -5
+          if [ ! -f "$PORTHOLE_PATH/Atlantis.podspec" ]; then
+            echo "::error::Atlantis.podspec not found at $PORTHOLE_PATH — did you create it?"
+            exit 1
+          fi
+          if [ ! -d "$PORTHOLE_PATH/Sources" ]; then
+            echo "::error::Sources/ not found at $PORTHOLE_PATH"
+            exit 1
+          fi
+
+          # Inject the Atlantis pod into the generated Podfile.
+          # CocoaPods will resolve it from the local :path, and Porthole's
+          # podspec declares a dependency on it, so the linkage is automatic.
+          cat <<EOF >> ios/Podfile
+
+          # --- Porthole pods ---
+          pod 'Atlantis', :path => '$PORTHOLE_PATH'
+          # --- End Porthole pods ---
+          EOF
+
+          echo "Injected Atlantis pod into Podfile:"
+          tail -6 ios/Podfile
 
       # A gitignored *.xcconfig next to a committed template is a common iOS
       # convention. The snapshot then carries the template but not the config,

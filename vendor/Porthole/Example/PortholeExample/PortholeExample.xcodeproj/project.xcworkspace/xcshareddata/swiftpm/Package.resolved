@@ -1,0 +1,15 @@
+{
+  "originHash" : "6232f50848cbacadbf95811f4f2fb424a3c752f25d685e456c838d7dcdc407c8",
+  "pins" : [
+    {
+      "identity" : "porthole",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/sohandotgit/Porthole",
+      "state" : {
+        "revision" : "990a15cbd8217375d11717da822417a93bde9bfc",
+        "version" : "3.0.2"
+      }
+    }
+  ],
+  "version" : 3
+}

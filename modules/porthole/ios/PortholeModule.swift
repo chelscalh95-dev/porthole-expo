@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import Atlantis
 
 public class PortholeModule: Module, AtlantisDelegate {
     private let store = Atlantis.trafficStore
