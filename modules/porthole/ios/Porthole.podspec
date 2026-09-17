@@ -11,12 +11,17 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
-  # SPM dependency declared in Podfile via spm_pkg
+  # Compile the Atlantis sources directly into this pod.
+  # Bypasses cocoapods-spm and its linking bugs entirely.
+  s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}",
+                   "../../../vendor/Porthole/Sources/**/*.swift"
 
-  # Swift/Objective-C compatibility
-  s.pod_target_xcconfig = {
-    'DEFINES_MODULE' => 'YES',
+  s.resource_bundles = {
+    'AtlantisPrivacy' => ['../../../vendor/Porthole/Sources/PrivacyInfo.xcprivacy']
   }
 
-  s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+    'SWIFT_COMPILATION_MODE' => 'wholemodule'
+  }
 end
