@@ -515,7 +515,7 @@ jobs:
             BUILD_CMD="$BUILD_CMD -destination 'generic/platform=iOS'"
             BUILD_CMD="$BUILD_CMD -derivedDataPath '$DERIVED_DATA_PATH'"
             BUILD_CMD="$BUILD_CMD COMPILER_INDEX_STORE_ENABLE=NO"
-            BUILD_CMD="$BUILD_CMD -quiet"
+            # BUILD_CMD="$BUILD_CMD -quiet" # temporarily disabled to see build errors
 
             if [ "$USE_SIGNING" = "true" ]; then
               # Must archive, not build: the IPA step below exports
