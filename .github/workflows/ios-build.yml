@@ -251,7 +251,7 @@ jobs:
         if: steps.detect.outputs.type == 'expo'
         env:
             IOS_PATH: ${{ steps.params.outputs.ios_path }}
-          run: |
+        run: |
             set -e
             npx expo prebuild --platform ios --no-install
             # prebuild creates ./ios by default; if ios_path is different, adjust
