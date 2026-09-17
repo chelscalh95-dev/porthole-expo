@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["PortholeModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.porthole.PortholeModule"]
+  }
+}
