@@ -9,7 +9,7 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "deploymentTarget": "16.0"
+      "deploymentTarget": "16.4"
     },
     "android": {
       "adaptiveIcon": {
