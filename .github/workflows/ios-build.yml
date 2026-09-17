@@ -164,6 +164,15 @@ jobs:
         run: |
             set -e
             npx expo prebuild --platform ios --no-install
+            # Inject cocoapods-spm plugin and Porthole package
+            cat <<'EOF' >> ios/Podfile
+            # --- Porthole SPM Integration ---
+            plugin 'cocoapods-spm'
+            spm_pkg 'Atlantis',
+              :path => '../vendor/Porthole',
+              :products => ['Atlantis']
+            # --- End Porthole SPM Integration ---
+            EOF
             # prebuild creates ./ios by default; if ios_path is different, adjust
             if [ "$IOS_PATH" != "." ] && [ "$IOS_PATH" != "ios" ]; then
               echo "::warning::expo prebuild writes to ./ios, but ios_path is set to '$IOS_PATH'"
@@ -331,6 +340,10 @@ jobs:
           echo "  profile: $PROFILE_NAME ($PROFILE_UUID)"
           echo "  app id:  $PROFILE_BUNDLE_ID"
           echo "If the build fails on a provisioning mismatch, the app's PRODUCT_BUNDLE_IDENTIFIER must match the app id above."
+
+      - name: Install cocoapods-spm plugin
+        if: steps.detect.outputs.type == 'expo'
+        run: gem install cocoapods-spm
 
       - name: Build IPA
         env:

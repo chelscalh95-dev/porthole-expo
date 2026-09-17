@@ -11,8 +11,7 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
-  # 👇 Pull in the local Swift Package from vendor/Porthole
-  s.spm_dependency 'Atlantis', path: '../../../vendor/Porthole'
+  # SPM dependency declared in Podfile via spm_pkg
 
   # Swift/Objective-C compatibility
   s.pod_target_xcconfig = {
