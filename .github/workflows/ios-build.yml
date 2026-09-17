@@ -245,7 +245,19 @@ jobs:
 
       - name: Install npm dependencies
         if: (steps.detect.outputs.type == 'reactnative' || steps.detect.outputs.type == 'expo') && steps.node-modules-cache.outputs.cache-hit != 'true'
-        run: npm install
+        run: npm install --legacy-peer-deps
+
+      - name: Expo prebuild (generate ios/ folder)
+        if: steps.detect.outputs.type == 'expo'
+        env:
+            IOS_PATH: ${{ steps.params.outputs.ios_path }}
+          run: |
+            set -e
+            npx expo prebuild --platform ios --no-install
+            # prebuild creates ./ios by default; if ios_path is different, adjust
+            if [ "$IOS_PATH" != "." ] && [ "$IOS_PATH" != "ios" ]; then
+              echo "::warning::expo prebuild writes to ./ios, but ios_path is set to '$IOS_PATH'"
+            fi
 
       - name: Setup JDK
         if: steps.detect.outputs.type == 'kmp'
