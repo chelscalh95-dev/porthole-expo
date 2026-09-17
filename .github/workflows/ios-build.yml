@@ -178,6 +178,9 @@ jobs:
             cat <<EOF >> ios/Podfile
             # --- Porthole SPM Integration ---
             plugin 'cocoapods-spm'
+            config_cocoapods_spm(
+              disable_copy_resources_script: true
+            )
             spm_pkg 'Atlantis',
               :path => '$PORTHOLE_PATH',
               :products => ['Atlantis']
