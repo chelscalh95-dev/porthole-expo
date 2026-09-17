@@ -189,10 +189,13 @@ jobs:
 
             # --- Porthole SPM Integration ---
             plugin 'cocoapods-spm'
+            config_cocoapods_spm(
+              linking: :xcframework # Use standard Xcode linking to avoid custom linker bugs
+            )
             spm_pkg 'Atlantis',
               :path => '$PORTHOLE_PATH',
               :products => ['Atlantis']
-
+              
             # --- End Porthole SPM Integration ---
             EOF
 
