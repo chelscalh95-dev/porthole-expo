@@ -164,12 +164,15 @@ jobs:
         run: |
             set -e
             npx expo prebuild --platform ios --no-install
+             # Compute absolute path to vendor/Porthole
+            PORTHOLE_PATH="$(cd "$(pwd)/../vendor/Porthole" && pwd)"
+            echo "Porthole absolute path: $PORTHOLE_PATH"
             # Inject cocoapods-spm plugin and Porthole package
-            cat <<'EOF' >> ios/Podfile
+            cat <<EOF >> ios/Podfile
             # --- Porthole SPM Integration ---
             plugin 'cocoapods-spm'
             spm_pkg 'Atlantis',
-              :path => '../vendor/Porthole',
+              :path => '$PORTHOLE_PATH',
               :products => ['Atlantis']
             # --- End Porthole SPM Integration ---
             EOF
