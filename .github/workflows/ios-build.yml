@@ -165,27 +165,37 @@ jobs:
             IOS_PATH: ${{ steps.params.outputs.ios_path }}
         run: |
             set -e
+
             npx expo prebuild --platform ios --no-install
-             # Compute absolute path to vendor/Porthole
+
+            # Compute absolute path to vendor/Porthole
             PORTHOLE_PATH="$(cd "$(pwd)/vendor/Porthole" && pwd)"
             echo "Porthole absolute path: $PORTHOLE_PATH"
+
+            # Inject install! option to disable input/output paths
+            # This prevents the cocoapods-spm resource hook crash
+            sed -i '' "/^target 'portholeexpo' do/i\\
+            install! 'cocoapods', :disable_input_output_paths => true
+            " ios/Podfile
+
             # Sanity check
             if [ ! -f "$PORTHOLE_PATH/Package.swift" ]; then
               echo "::error::Package.swift not found at $PORTHOLE_PATH"
               exit 1
             fi
+
             # Inject cocoapods-spm plugin and Porthole package
             cat <<EOF >> ios/Podfile
+
             # --- Porthole SPM Integration ---
             plugin 'cocoapods-spm'
-            config_cocoapods_spm(
-              disable_copy_resources_script: true
-            )
             spm_pkg 'Atlantis',
               :path => '$PORTHOLE_PATH',
               :products => ['Atlantis']
+
             # --- End Porthole SPM Integration ---
             EOF
+
             # prebuild creates ./ios by default; if ios_path is different, adjust
             if [ "$IOS_PATH" != "." ] && [ "$IOS_PATH" != "ios" ]; then
               echo "::warning::expo prebuild writes to ./ios, but ios_path is set to '$IOS_PATH'"
@@ -356,7 +366,7 @@ jobs:
 
       - name: Install cocoapods-spm plugin
         if: steps.detect.outputs.type == 'expo'
-        run: gem install cocoapods-spm
+        run: gem install cocoapods-spm -v 0.1.15
 
       - name: Build IPA
         env:
